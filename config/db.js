@@ -15,11 +15,11 @@ if (process.env.DATABASE_URL) {
         ...poolConfig,
         user: url.username,
         password: url.password,
-        host: url.hostname,
+        host: '127.0.0.53',
         port: parseInt(url.port || '5432', 10),
         database: url.pathname.substring(1), // Remove leading '/'
     };
-    console.log(`Connecting to database at host: ${url.hostname} (IPv4 forced)`);
+     console.log(`Connecting to database at IP: 123.45.67.89 (forced IPv4)`);
 } else {
     // Fallback to individual variables (if needed)
     poolConfig = {
