@@ -9,17 +9,17 @@ let poolConfig = {
 };
 
 if (process.env.DATABASE_URL) {
-    // Parse the connection string
-    const url = new URL(process.env.DATABASE_URL);
-    poolConfig = {
-        ...poolConfig,
-        user: url.username,
-        password: url.password,
-        host: '127.0.0.53',
-        port: parseInt(url.port || '5432', 10),
-        database: url.pathname.substring(1), // Remove leading '/'
-    };
-     console.log(`Connecting to database at IP: 123.45.67.89 (forced IPv4)`);
+  const url = new URL(process.env.DATABASE_URL);
+const ipv4 = '64.227.149.75'; 
+poolConfig = {
+    ...poolConfig,
+    user: url.username,
+    password: url.password,
+    host: ipv4,               // Hardcoded IPv4
+    port: parseInt(url.port || '5432', 10),
+    database: url.pathname.substring(1),
+};
+console.log(`Connecting to database at IPv4: ${ipv4}`);
 } else {
     // Fallback to individual variables (if needed)
     poolConfig = {
