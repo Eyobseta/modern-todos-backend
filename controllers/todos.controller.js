@@ -2,8 +2,7 @@ import {
     fetchTodos,
     fetchTodoByDay,
     createTodo,
-    updateTodoStatus,
-    updateTodo,
+    updateTodoFields,   
     deleteTodo,
     fetchCompletedCountByDay
 } from "../repositories/todos.repositories.js";
@@ -17,12 +16,18 @@ const createNotFoundError = (id) => {
 async function getTodos(req, res, next) {
     try {
         const userId = req.user.userId;
-        const { day } = req.query;
+        const { day, sortBy } = req.query;
+
+        let orderBy = 'day, created_at'; // default
+        if (sortBy === 'due_date') {
+            orderBy = 'due_date NULLS LAST, day, created_at';
+        }
+
         if (day) {
-            const todos = await fetchTodoByDay(userId, day);
+            const todos = await fetchTodoByDay(userId, day, orderBy);
             return res.status(200).json(todos);
         }
-        const todos = await fetchTodos(userId);
+        const todos = await fetchTodos(userId, orderBy);
         res.status(200).json(todos);
     } catch (error) {
         next(error);
@@ -32,14 +37,27 @@ async function getTodos(req, res, next) {
 async function createTodos(req, res, next) {
     try {
         const userId = req.user.userId;
-        const { title, day } = req.body;
+        const { title, day, due_date } = req.body;
+
         if (!title || title.trim() === "" || !day || day.trim() === "") {
             const error = new Error('Title and day are required');
             error.status = 400;
             return next(error);
         }
 
-        const newTodo = await createTodo(userId, title.trim(), day.trim());
+        // Validate due_date if provided (must be YYYY-MM-DD)
+        if (due_date && !/^\d{4}-\d{2}-\d{2}$/.test(due_date)) {
+            const error = new Error('Due date must be in YYYY-MM-DD format');
+            error.status = 400;
+            return next(error);
+        }
+
+        const newTodo = await createTodo(
+            userId, 
+            title.trim(), 
+            day.trim(), 
+            due_date || null  // send null if not provided
+        );
         res.status(201).json(newTodo);
     } catch (error) {
         next(error);
@@ -50,7 +68,7 @@ async function updateTodos(req, res, next) {
     try {
         const userId = req.user.userId;
         const { id } = req.params;
-        const { title, completed } = req.body;
+        const { title, completed, due_date } = req.body;
 
         if (!id) {
             const error = new Error('ID is required');
@@ -58,22 +76,36 @@ async function updateTodos(req, res, next) {
             return next(error);
         }
 
-        let updatedTodo = null;
-
-        if ('completed' in req.body) {
-            updatedTodo = await updateTodoStatus(userId, completed, id);
-        } else if (title !== undefined) {
+        // Build fields object with only the provided fields
+        const fields = {};
+        if (title !== undefined) {
             if (!title.trim()) {
                 const error = new Error('Title cannot be empty');
                 error.status = 400;
                 return next(error);
             }
-            updatedTodo = await updateTodo(userId, title.trim(), id);
-        } else {
-            const error = new Error('No valid fields to update (title or completed)');
+            fields.title = title;
+        }
+        if (completed !== undefined) {
+            fields.completed = completed;
+        }
+        if (due_date !== undefined) {
+            // Allow setting due_date to null to remove it
+            if (due_date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(due_date)) {
+                const error = new Error('Due date must be in YYYY-MM-DD format');
+                error.status = 400;
+                return next(error);
+            }
+            fields.due_date = due_date;
+        }
+
+        if (Object.keys(fields).length === 0) {
+            const error = new Error('No valid fields to update (title, completed, or due_date)');
             error.status = 400;
             return next(error);
         }
+
+        const updatedTodo = await updateTodoFields(userId, id, fields);
 
         if (!updatedTodo) {
             return next(createNotFoundError(id));
@@ -84,7 +116,6 @@ async function updateTodos(req, res, next) {
         next(error);
     }
 }
-
 async function deleteTodos(req, res, next) {
     try {
         const userId = req.user.userId;
